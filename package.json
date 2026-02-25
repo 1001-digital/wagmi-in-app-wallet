@@ -1,0 +1,20 @@
+{
+  "name": "@1001-digital/wagmi-in-app-wallet",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "@wagmi/core": ">=3.0.0",
+    "viem": ">=2.0.0"
+  },
+  "devDependencies": {
+    "@wagmi/core": "^3.4.0",
+    "typescript": "^5.8.0",
+    "viem": "^2.45.0"
+  }
+}
