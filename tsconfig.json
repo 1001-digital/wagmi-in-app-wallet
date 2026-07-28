@@ -6,7 +6,9 @@
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }
