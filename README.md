@@ -19,7 +19,18 @@ import { mainnet } from 'viem/chains'
 
 const config = createConfig({
   chains: [mainnet],
-  connectors: [inAppWallet()],
+  connectors: [
+    inAppWallet({
+      smartAccounts: {
+        [mainnet.id]: {
+          // Point this at an authenticated application broker. Do not expose
+          // a Pimlico API key in browser code.
+          rpcUrl: 'https://api.example.com/11x11/smart-account/rpc',
+          fetchOptions: { credentials: 'include' },
+        },
+      },
+    }),
+  ],
   transports: { [mainnet.id]: http() },
 })
 
@@ -43,6 +54,9 @@ inAppWallet({ storageKey: 'my-app:wallet-pk' })
 Creates a wagmi connector. Accepts an optional `InAppWalletParameters` object:
 
 - `storageKey` — localStorage key for the private key (default: `evm:in-app-wallet-pk`)
+- `smartAccounts` — optional per-chain EIP-7702/4337 configuration. Configured
+  chains support `wallet_sendCalls`, `wallet_getCallsStatus`, and
+  `wallet_getCapabilities`.
 
 ### `prepareInAppWallet(mnemonic)`
 
@@ -53,8 +67,25 @@ Derives a private key from a BIP39 mnemonic, stores it in localStorage, and retu
 ```ts
 type InAppWalletParameters = {
   storageKey?: string
+  smartAccounts?: Record<number, {
+    rpcUrl: string
+    entryPoint?: Address
+    implementation?: Address
+    paymasterContext?: unknown
+    fetchOptions?: RequestInit
+  }>
 }
 ```
+
+The first smart-account call signs the EIP-7702 authorization and includes it
+in the sponsored UserOperation. Existing delegations are accepted only when
+they match the configured implementation; a different delegation is never
+overwritten automatically.
+
+### `clearInAppWalletDelegation(parameters)`
+
+Sends an explicit, self-paid EIP-7702 transaction that clears the current
+delegation. This recovery action is never invoked automatically.
 
 ## License
 
