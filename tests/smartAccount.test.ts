@@ -4,6 +4,7 @@ import {
   UnexpectedDelegationError,
   assertExpectedDelegation,
   getDelegationState,
+  pimlicoUserOperationFees,
   toCallsStatus,
 } from '../src/smartAccount'
 
@@ -85,5 +86,35 @@ describe('toCallsStatus', () => {
         receipt: transactionReceipt,
       }),
     ).toMatchObject({ status: 500, receipts: [transactionReceipt] })
+  })
+})
+
+describe('pimlicoUserOperationFees', () => {
+  it('uses Pimlico fast fees', () => {
+    expect(
+      pimlicoUserOperationFees({
+        fast: {
+          maxFeePerGas: '0x2a',
+          maxPriorityFeePerGas: '0x20',
+        },
+      }),
+    ).toEqual({
+      maxFeePerGas: 42n,
+      maxPriorityFeePerGas: 32n,
+    })
+  })
+
+  it('rejects missing and invalid fees', () => {
+    expect(() => pimlicoUserOperationFees({})).toThrow(
+      'Pimlico did not return a fast UserOperation gas price',
+    )
+    expect(() =>
+      pimlicoUserOperationFees({
+        fast: {
+          maxFeePerGas: '0x1',
+          maxPriorityFeePerGas: '0x2',
+        },
+      }),
+    ).toThrow('Pimlico returned an invalid UserOperation gas price')
   })
 })
