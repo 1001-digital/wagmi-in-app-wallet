@@ -1,6 +1,6 @@
 {
   "name": "@1001-digital/wagmi-in-app-wallet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -8,6 +8,10 @@
   "files": [
     "src"
   ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
   "peerDependencies": {
     "@wagmi/core": ">=3.0.0",
     "viem": ">=2.0.0"
@@ -15,6 +19,7 @@
   "devDependencies": {
     "@wagmi/core": "^3.4.0",
     "typescript": "^5.8.0",
-    "viem": "^2.45.0"
+    "viem": "^2.45.0",
+    "vitest": "^3.2.4"
   }
 }

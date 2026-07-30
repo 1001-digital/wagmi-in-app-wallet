@@ -12,6 +12,28 @@ import {
   numberToHex,
 } from 'viem'
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts'
+import {
+  type SmartAccountChainParameters,
+  type WalletSendCallsRequest,
+  clearInAppWalletDelegation as clearDelegation,
+  getSmartAccountCallsStatus,
+  sendSmartAccountCalls,
+} from './smartAccount'
+
+export {
+  ENTRY_POINT_V08_ADDRESS,
+  SIMPLE_7702_ACCOUNT_V08_IMPLEMENTATION,
+  UnexpectedDelegationError,
+  assertExpectedDelegation,
+  getDelegationState,
+  toCallsStatus,
+} from './smartAccount'
+export type {
+  DelegationState,
+  SmartAccountChainParameters,
+  WalletCall,
+  WalletSendCallsRequest,
+} from './smartAccount'
 
 const STORAGE_KEY = 'evm:in-app-wallet-pk'
 
@@ -34,6 +56,7 @@ export async function prepareInAppWallet(mnemonic: string): Promise<Address> {
 
 export type InAppWalletParameters = {
   storageKey?: string
+  smartAccounts?: Record<number, SmartAccountChainParameters>
 }
 
 inAppWallet.type = 'inAppWallet' as const
@@ -48,6 +71,7 @@ export function inAppWallet(parameters: InAppWalletParameters = {}) {
   return createConnector<Provider>((config) => {
     let account: PrivateKeyAccount | null = null
     let currentChainId: number = config.chains[0].id
+    const callsChains = new Map<string, number>()
 
     function loadAccount(): PrivateKeyAccount | null {
       if (typeof window === 'undefined') return null
@@ -158,6 +182,79 @@ export function inAppWallet(parameters: InAppWalletParameters = {}) {
             })
           }
 
+          if (method === 'wallet_sendCalls') {
+            if (!account) throw new Error('Not connected')
+            const smartAccount = parameters.smartAccounts?.[currentChainId]
+            if (!smartAccount)
+              throw new Error(
+                `Smart account is not configured for chain ${currentChainId}`,
+              )
+
+            const [request] = params as [WalletSendCallsRequest]
+            if (
+              request.chainId &&
+              hexToNumber(request.chainId) !== currentChainId
+            )
+              throw new Error('Requested calls use a different chain')
+            if (
+              request.from &&
+              getAddress(request.from) !== getAddress(account.address)
+            )
+              throw new Error('Requested calls use a different account')
+
+            const callsChain = getChain(currentChainId)
+            const callsTransport =
+              config.transports?.[callsChain.id] ?? http()
+            const id = await sendSmartAccountCalls({
+              account,
+              calls: request.calls,
+              chain: callsChain,
+              smartAccount,
+              transport: callsTransport,
+            })
+            callsChains.set(id, currentChainId)
+            return { id }
+          }
+
+          if (method === 'wallet_getCallsStatus') {
+            const [id] = params as [Hex]
+            const callsChainId = callsChains.get(id) ?? currentChainId
+            const callsChain = getChain(callsChainId)
+            const smartAccount = parameters.smartAccounts?.[callsChainId]
+            if (!smartAccount)
+              throw new Error(
+                `Smart account is not configured for chain ${callsChainId}`,
+              )
+            const status = await getSmartAccountCallsStatus({
+              chain: callsChain,
+              id,
+              smartAccount,
+            })
+            if (status.status === 200 || status.status === 500)
+              callsChains.delete(id)
+            return status
+          }
+
+          if (method === 'wallet_getCapabilities') {
+            const [requestedAccount] = (params ?? []) as [Address?]
+            if (
+              requestedAccount &&
+              account &&
+              getAddress(requestedAccount) !== getAddress(account.address)
+            )
+              throw new Error('Requested capabilities use a different account')
+
+            return Object.fromEntries(
+              Object.keys(parameters.smartAccounts ?? {}).map((chainId) => [
+                numberToHex(Number(chainId)),
+                {
+                  atomic: { status: 'supported' },
+                  paymasterService: { supported: true },
+                },
+              ]),
+            )
+          }
+
           // Chain switching
           if (method === 'wallet_switchEthereumChain') {
             const [{ chainId: hexChainId }] = params as [
@@ -217,5 +314,23 @@ export function inAppWallet(parameters: InAppWalletParameters = {}) {
         account = null
       },
     }
+  })
+}
+
+export async function clearInAppWalletDelegation(parameters: {
+  chain: Parameters<typeof clearDelegation>[0]['chain']
+  transport: Parameters<typeof clearDelegation>[0]['transport']
+  storageKey?: string
+}) {
+  if (typeof window === 'undefined')
+    throw new Error('In-app wallet storage is unavailable')
+  const stored = localStorage.getItem(parameters.storageKey ?? STORAGE_KEY)
+  if (!stored?.startsWith('0x'))
+    throw new Error('No in-app wallet key found in storage')
+
+  return clearDelegation({
+    account: privateKeyToAccount(stored as Hex),
+    chain: parameters.chain,
+    transport: parameters.transport,
   })
 }
