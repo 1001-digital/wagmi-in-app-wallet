@@ -62,6 +62,10 @@ Creates a wagmi connector. Accepts an optional `InAppWalletParameters` object:
 
 Derives a private key from a BIP39 mnemonic, stores it in localStorage, and returns the wallet address. Call this before connecting.
 
+Disconnecting the connector preserves the generated key so the same wallet can
+reconnect after a sign-out or page reload. Call `forgetInAppWallet()` only when
+the user explicitly asks to remove the wallet from this browser.
+
 ### `InAppWalletParameters`
 
 ```ts
@@ -81,6 +85,15 @@ The first smart-account call signs the EIP-7702 authorization and includes it
 in the sponsored UserOperation. Existing delegations are accepted only when
 they match the configured implementation; a different delegation is never
 overwritten automatically.
+
+The smart-account RPC must expose Pimlico's
+`pimlico_getUserOperationGasPrice` method. The connector uses its `fast` fee
+tier when preparing and signing UserOperations, as recommended by Pimlico.
+
+### `forgetInAppWallet(storageKey?)`
+
+Explicitly removes the locally stored in-app wallet key. Ordinary connector
+disconnects do not remove wallet material.
 
 ### `clearInAppWalletDelegation(parameters)`
 

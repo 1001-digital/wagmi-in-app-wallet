@@ -48,6 +48,15 @@ export type WalletSendCallsRequest = {
   version?: string
 }
 
+type PimlicoGasPrice = {
+  maxFeePerGas: bigint | string
+  maxPriorityFeePerGas: bigint | string
+}
+
+type PimlicoGasPrices = {
+  fast?: PimlicoGasPrice
+}
+
 export type DelegationState =
   | { status: 'undelegated' }
   | { status: 'delegated'; implementation: Address }
@@ -135,6 +144,31 @@ export function toCallsStatus(
   }
 }
 
+export function pimlicoUserOperationFees(value: unknown) {
+  const fast = (value as PimlicoGasPrices | null)?.fast
+  if (!fast)
+    throw new Error('Pimlico did not return a fast UserOperation gas price')
+
+  let maxFeePerGas: bigint
+  let maxPriorityFeePerGas: bigint
+  try {
+    maxFeePerGas = BigInt(fast.maxFeePerGas)
+    maxPriorityFeePerGas = BigInt(fast.maxPriorityFeePerGas)
+  } catch {
+    throw new Error('Pimlico returned an invalid UserOperation gas price')
+  }
+
+  if (
+    maxFeePerGas <= 0n ||
+    maxPriorityFeePerGas <= 0n ||
+    maxPriorityFeePerGas > maxFeePerGas
+  ) {
+    throw new Error('Pimlico returned an invalid UserOperation gas price')
+  }
+
+  return { maxFeePerGas, maxPriorityFeePerGas }
+}
+
 export async function sendSmartAccountCalls(parameters: {
   account: PrivateKeyAccount
   calls: readonly WalletCall[]
@@ -179,6 +213,22 @@ export async function sendSmartAccountCalls(parameters: {
     transport: http(smartAccount.rpcUrl, {
       fetchOptions: smartAccount.fetchOptions,
     }),
+    userOperation: {
+      estimateFeesPerGas: async ({ bundlerClient }) => {
+        const gasPrices = await (
+          bundlerClient as unknown as {
+            request: (parameters: {
+              method: 'pimlico_getUserOperationGasPrice'
+              params: []
+            }) => Promise<unknown>
+          }
+        ).request({
+          method: 'pimlico_getUserOperationGasPrice',
+          params: [],
+        })
+        return pimlicoUserOperationFees(gasPrices)
+      },
+    },
   })
 
   const authorization =

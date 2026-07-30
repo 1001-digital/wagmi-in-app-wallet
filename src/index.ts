@@ -26,6 +26,7 @@ export {
   UnexpectedDelegationError,
   assertExpectedDelegation,
   getDelegationState,
+  pimlicoUserOperationFees,
   toCallsStatus,
 } from './smartAccount'
 export type {
@@ -52,6 +53,12 @@ export async function prepareInAppWallet(mnemonic: string): Promise<Address> {
 
   localStorage.setItem(STORAGE_KEY, pk)
   return hdAccount.address
+}
+
+export function forgetInAppWallet(storageKey = STORAGE_KEY) {
+  if (typeof window === 'undefined')
+    throw new Error('In-app wallet storage is unavailable')
+  localStorage.removeItem(storageKey)
 }
 
 export type InAppWalletParameters = {
@@ -111,9 +118,6 @@ export function inAppWallet(parameters: InAppWalletParameters = {}) {
 
       async disconnect() {
         account = null
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(key)
-        }
       },
 
       async getAccounts() {
